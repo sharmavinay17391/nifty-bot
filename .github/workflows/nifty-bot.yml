@@ -1,0 +1,30 @@
+name: NIFTY Bot Daily
+
+on:
+  schedule:
+    # Runs every weekday at 9:15 AM IST (3:45 AM UTC)
+    - cron: '45 3 * * 1-5'
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run NIFTY Bot
+      env:
+        BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        CHAT_ID: ${{ secrets.CHAT_ID }}
+      run: python niftybot.py
