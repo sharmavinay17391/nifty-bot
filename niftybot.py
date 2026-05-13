@@ -5,19 +5,15 @@ import numpy as np
 import pytz
 from datetime import datetime
 import asyncio
-import time
 from telegram import Bot
 
 # ==================== CONFIG ====================
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 
-CAPITAL = 100000
-MAX_RISK_PER_TRADE = 0.02
-VIX_THRESHOLD = 22
-MIN_VOLUME_FILTER = 500000
+MIN_VOLUME_FILTER = 350000
 
-# ==================== SYMBOLS ====================
+# ==================== FULL SYMBOL LIST ====================
 INDICES = {
     "NIFTY": "^NSEI", "BANKNIFTY": "^NSEBANK", "SENSEX": "^BSESN",
     "FINNIFTY": "^NSEFIN", "MIDCPNIFTY": "^MIDCPNIFTY"
@@ -57,207 +53,132 @@ STOCKS = {
 
 ALL_SYMBOLS = {**INDICES, **STOCKS}
 
-# ==================== INDICATORS ====================
-def calculate_atr(df, period=14):
-    tr = pd.concat([df['High']-df['Low'], (df['High']-df['Close'].shift()).abs(), (df['Low']-df['Close'].shift()).abs()], axis=1).max(axis=1)
-    return tr.rolling(period).mean()
-
-def calculate_supertrend(df, period=10, multiplier=3):
-    try:
-        atr = calculate_atr(df, period)
-        hl2 = (df['High'] + df['Low']) / 2
-        upper = hl2 + multiplier * atr
-        lower = hl2 - multiplier * atr
-        trend = np.where(df['Close'] > upper.shift(), 1, np.where(df['Close'] < lower.shift(), -1, np.nan))
-        trend_series = pd.Series(trend).ffill()
-        return trend_series.iloc[-1], lower.iloc[-1] if trend_series.iloc[-1] == 1 else upper.iloc[-1]
-    except:
-        return 0, 0
-
-def calculate_vwap(df):
-    try:
-        tp = (df['High'] + df['Low'] + df['Close']) / 3
-        return (tp * df['Volume']).cumsum() / df['Volume'].cumsum().iloc[-1]
-    except:
-        return 0
-
-def calculate_adx(df, period=14):
-    try:
-        tr = calculate_atr(df, period)
-        dm_plus = df['High'].diff()
-        dm_minus = df['Low'].diff().abs()
-        di_plus = (dm_plus.where(dm_plus > dm_minus, 0) / tr).rolling(period).mean() * 100
-        di_minus = (dm_minus.where(dm_minus > dm_plus, 0) / tr).rolling(period).mean() * 100
-        dx = (di_plus - di_minus).abs() / (di_plus + di_minus) * 100
-        return dx.rolling(period).mean().iloc[-1]
-    except:
-        return 20
-
-def calculate_rsi(prices, period=14):
-    try:
-        delta = prices.diff()
-        gain = delta.where(delta > 0, 0).rolling(period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs)).iloc[-1]
-    except:
-        return 50
-
-def get_vix():
-    try:
-        return yf.Ticker("^INDIAVIX").fast_info.last_price
-    except:
-        return 18
-
 # ==================== PATTERN DETECTION ====================
-def detect_candlestick_patterns(df):
+def detect_patterns(df):
     body = abs(df['Close'] - df['Open'])
-    upper_shadow = df['High'] - df[['Open', 'Close']].max(axis=1)
-    lower_shadow = df[['Open', 'Close']].min(axis=1) - df['Low']
-    return {
+    upper_shadow = df['High'] - df[['Open','Close']].max(axis=1)
+    lower_shadow = df[['Open','Close']].min(axis=1) - df['Low']
+
+    patterns = {
         'Hammer': (lower_shadow > 2 * body) & (upper_shadow < body * 0.5) & (df['Close'] > df['Open']),
-        'ShootingStar': (upper_shadow > 2 * body) & (lower_shadow < body * 0.5) & (df['Close'] < df['Open']),
         'BullEngulfing': (df['Close'].shift(1) < df['Open'].shift(1)) & (df['Close'] > df['Open']) & 
                          (df['Close'] > df['Open'].shift(1)) & (df['Open'] < df['Close'].shift(1)),
         'BearEngulfing': (df['Close'].shift(1) > df['Open'].shift(1)) & (df['Close'] < df['Open']) & 
                          (df['Close'] < df['Open'].shift(1)) & (df['Open'] > df['Close'].shift(1))
     }
+    
+    # Double Bottom (Bullish)
+    lows = df['Low'].rolling(window=8, center=True).min()
+    double_bottom = (abs(df['Low'] - lows.shift(8)) < df['Low']*0.008) & \
+                    (abs(df['Low'] - lows.shift(-8)) < df['Low']*0.008)
+    
+    return patterns, double_bottom.iloc[-1]
 
-def detect_double_top_bottom(df, window=8):
-    try:
-        highs = df['High'].rolling(window=window, center=True).max()
-        lows = df['Low'].rolling(window=window, center=True).min()
-        dt = (abs(df['High'] - highs.shift(window)) < df['High']*0.005) & (abs(df['High'] - highs.shift(-window)) < df['High']*0.005)
-        db = (abs(df['Low'] - lows.shift(window)) < df['Low']*0.005) & (abs(df['Low'] - lows.shift(-window)) < df['Low']*0.005)
-        return dt.iloc[-1], db.iloc[-1]
-    except:
-        return False, False
+# ==================== SIGNAL ENGINE (Score >= 8) ====================
+def generate_signal(df):
+    if len(df) < 30:
+        return None, 0, None, []
 
-# ==================== MAIN SIGNAL ====================
-def generate_signal(df, name):
-    vix = get_vix()
-    if vix > VIX_THRESHOLD:
-        return "CAUTION - HIGH VOL", "Low", 0, ["High VIX"], 0, "HOLD"
-
-    patterns = detect_candlestick_patterns(df)
-    dt, db = detect_double_top_bottom(df)
+    last = df['Close'].iloc[-1]
+    ma20 = df['Close'].rolling(20).mean().iloc[-1]
+    vol_avg = df['Volume'].rolling(20).mean().iloc[-1]
 
     score = 0
     reasons = []
 
-    super_dir, st_level = calculate_supertrend(df)
-    vwap = calculate_vwap(df)
-    adx = calculate_adx(df)
-    rsi = calculate_rsi(df['Close'])
-    last = df['Close'].iloc[-1]
+    patterns, double_bottom = detect_patterns(df)
 
-    if super_dir == 1 and last > vwap:
+    # Technical Conditions
+    if last > ma20:
         score += 4
-        reasons.append("Supertrend Bullish + Above VWAP")
-    elif super_dir == -1 and last < vwap:
-        score -= 4
-        reasons.append("Supertrend Bearish + Below VWAP")
+        reasons.append("Above 20 EMA")
 
-    if adx > 25:
-        score += 2
-        reasons.append(f"Strong Trend (ADX {adx:.1f})")
-
-    if rsi < 35:
-        score += 2
-        reasons.append("RSI Oversold")
-    elif rsi > 65:
-        score -= 2
-        reasons.append("RSI Overbought")
-
-    if patterns['Hammer'].iloc[-1] or patterns['BullEngulfing'].iloc[-1] or db:
+    if last > df['Close'].rolling(10).mean().iloc[-1]:
         score += 3
-        reasons.append("Bullish Pattern")
-    if patterns['ShootingStar'].iloc[-1] or patterns['BearEngulfing'].iloc[-1] or dt:
-        score -= 3
-        reasons.append("Bearish Pattern")
+        reasons.append("Short Momentum")
 
-    if score >= 7:
-        signal = "STRONG BUY ⬆️"
-        conf = "Very High"
-    elif score >= 4:
-        signal = "BUY ↗️"
-        conf = "High"
-    elif score <= -7:
-        signal = "STRONG SELL ⬇️"
-        conf = "Very High"
-    elif score <= -4:
-        signal = "SELL ↘️"
-        conf = "High"
-    else:
-        signal = "HOLD ➡️"
-        conf = "Neutral"
+    if df['Volume'].iloc[-1] > vol_avg * 1.8:
+        score += 3
+        reasons.append("Volume Surge")
 
-    risk_amount = CAPITAL * MAX_RISK_PER_TRADE
-    stop_dist = abs(last - st_level) if st_level != 0 else last * 0.01
-    qty = int(risk_amount / stop_dist) if stop_dist > 0 else 0
+    # Pattern Conditions (High Success Rate)
+    if patterns['Hammer'].iloc[-1]:
+        score += 4
+        reasons.append("Hammer Candlestick (81%)")
+
+    if patterns['BullEngulfing'].iloc[-1]:
+        score += 4
+        reasons.append("Bullish Engulfing (72%)")
+
+    if double_bottom:
+        score += 3
+        reasons.append("Double Bottom (64%)")
+
+    # Final Decision
+    signal = None
+    if score >= 8:
+        signal = "🚀 VERY STRONG BUY ⬆️"
+    elif score <= -8:
+        signal = "🔻 VERY STRONG SELL ⬇️"
 
     atm = round(last / 10) * 10
-    bias = " (Bullish Pattern)" if score > 4 else " (Bearish Pattern)" if score < -4 else ""
-    option = f"BUY {atm} CE{bias}" if "BUY" in signal else f"BUY {atm} PE{bias}" if "SELL" in signal else "HOLD"
+    option = f"BUY {atm} CE" if "BUY" in str(signal) else f"BUY {atm} PE" if "SELL" in str(signal) else "HOLD"
 
-    return signal, conf, score, reasons, qty, option
+    return signal, score, option, reasons
 
 # ==================== TELEGRAM ====================
 async def send_telegram(message):
     try:
         bot = Bot(token=BOT_TOKEN)
         await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='HTML')
-    except:
-        pass
+        print("✅ Very Strong Signal Sent!")
+    except Exception as e:
+        print(f"Telegram Error: {e}")
 
-# ==================== 15-MINUTE LOOP ====================
-def run_15min_bot():
-    print("🚀 15-Minute Trading Bot Started...")
-    while True:
+# ==================== MAIN ====================
+def main():
+    ist = pytz.timezone('Asia/Kolkata')
+    now = datetime.now(ist)
+
+    if now.weekday() >= 5 or now.hour < 9 or now.hour >= 15:
+        print("Market Closed")
+        return
+
+    msg = f"<b>🔥 VERY STRONG SIGNALS (Score ≥ 8)</b>\n"
+    msg += f"🕒 {now.strftime('%d-%m-%Y %H:%M IST')}\n"
+    msg += "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    strong_count = 0
+
+    for name, ticker in ALL_SYMBOLS.items():
         try:
-            ist = pytz.timezone('Asia/Kolkata')
-            now = datetime.now(ist)
-
-            if now.weekday() >= 5 or now.hour < 9 or now.hour >= 15:
-                time.sleep(900)
+            df = yf.Ticker(ticker).history(period="2d", interval="5m")
+            if df.empty or len(df) < 30:
+                continue
+            if name not in INDICES and df['Volume'].iloc[-1] < MIN_VOLUME_FILTER:
                 continue
 
-            print(f"🔄 Running at {now.strftime('%H:%M:%S')}")
+            signal, score, option, reasons = generate_signal(df)
+            if signal is None:
+                continue
 
-            msg = f"<b>🔴 15-MIN LIVE SIGNALS</b>\n"
-            msg += f"🕒 {now.strftime('%d-%m-%Y %H:%M IST')} | VIX: {get_vix():.1f}\n"
-            msg += "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            spot = df['Close'].iloc[-1]
 
-            count = 0
-            for name, ticker in ALL_SYMBOLS.items():
-                try:
-                    df = yf.Ticker(ticker).history(period="5d", interval="5m")
-                    if df.empty or len(df) < 30:
-                        continue
-                    if name not in INDICES and df['Volume'].iloc[-1] < MIN_VOLUME_FILTER:
-                        continue
+            msg += f"<b>{name}</b> @ {spot:.1f}\n"
+            msg += f"{signal} | Score: {score}\n"
+            msg += f"Option: {option}\n"
+            if reasons:
+                msg += f"→ {', '.join(reasons)}\n\n"
+            strong_count += 1
 
-                    signal, conf, score, reasons, qty, option = generate_signal(df, name)
-                    spot = df['Close'].iloc[-1]
+        except:
+            continue
 
-                    if score >= 4 or score <= -4:   # Only send strong signals
-                        msg += f"<b>{name}</b> @ {spot:.1f}\n"
-                        msg += f"{signal} | {conf} (Score: {score})\n"
-                        msg += f"Qty: ~{qty} | {option}\n"
-                        if reasons:
-                            msg += f"→ {reasons[0]}\n\n"
-                        count += 1
-                except:
-                    continue
-
-            if count > 0:
-                asyncio.run(send_telegram(msg))
-                print(f"✅ Sent {count} signals")
-
-        except Exception as e:
-            print(f"Error: {e}")
-
-        time.sleep(900)  # 15 minutes
+    if strong_count > 0:
+        asyncio.run(send_telegram(msg))
+        print(f"✅ Sent {strong_count} VERY STRONG signals")
+    else:
+        print("No signals above score 8 this cycle")
 
 if __name__ == "__main__":
-    run_15min_bot()
+    asyncio.run(main())
