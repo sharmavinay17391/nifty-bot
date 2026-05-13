@@ -3,3 +3,4 @@ pandas==3.0.2
 python-telegram-bot==20.7
 yfinance
 numpy
+pytz
