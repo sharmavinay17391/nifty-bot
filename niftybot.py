@@ -7,16 +7,18 @@ from datetime import datetime
 import asyncio
 from telegram import Bot
 
-# ==================== CONFIG ====================
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
 
 MIN_VOLUME_FILTER = 350000
 
-# ==================== FULL SYMBOL LIST ====================
+# ==================== FULL STOCK LIST ====================
 INDICES = {
-    "NIFTY": "^NSEI", "BANKNIFTY": "^NSEBANK", "SENSEX": "^BSESN",
-    "FINNIFTY": "^NSEFIN", "MIDCPNIFTY": "^MIDCPNIFTY"
+    "NIFTY": "^NSEI",
+    "BANKNIFTY": "^NSEBANK",
+    "SENSEX": "^BSESN",
+    "FINNIFTY": "^NSEFIN",
+    "MIDCPNIFTY": "^MIDCPNIFTY"
 }
 
 STOCKS = {
@@ -27,25 +29,43 @@ STOCKS = {
     "APLAPOLLO": "APLAPOLLO.NS", "APOLLOHOSP": "APOLLOHOSP.NS", "ASHOKLEY": "ASHOKLEY.NS",
     "ASIANPAINT": "ASIANPAINT.NS", "ASTRAL": "ASTRAL.NS", "AUBANK": "AUBANK.NS",
     "AUROPHARMA": "AUROPHARMA.NS", "AXISBANK": "AXISBANK.NS", "BAJAJ-AUTO": "BAJAJ-AUTO.NS",
-    "BAJAJFINSV": "BAJAJFINSV.NS", "BAJFINANCE": "BAJFINANCE.NS", "BANDHANBNK": "BANDHANBNK.NS",
-    "BANKBARODA": "BANKBARODA.NS", "BEL": "BEL.NS", "BHARTIARTL": "BHARTIARTL.NS",
-    "BHEL": "BHEL.NS", "BIOCON": "BIOCON.NS", "BPCL": "BPCL.NS", "BRITANNIA": "BRITANNIA.NS",
-    "CANBK": "CANBK.NS", "CHOLAFIN": "CHOLAFIN.NS", "CIPLA": "CIPLA.NS", "COALINDIA": "COALINDIA.NS",
-    "COCHINSHIP": "COCHINSHIP.NS", "COLPAL": "COLPAL.NS", "DABUR": "DABUR.NS", "DELHIVERY": "DELHIVERY.NS",
-    "DIVISLAB": "DIVISLAB.NS", "DIXON": "DIXON.NS", "DLF": "DLF.NS", "DMART": "DMART.NS",
-    "DRREDDY": "DRREDDY.NS", "EICHERMOT": "EICHERMOT.NS", "EXIDEIND": "EXIDEIND.NS",
-    "FEDERALBNK": "FEDERALBNK.NS", "GAIL": "GAIL.NS", "GLENMARK": "GLENMARK.NS",
-    "GODREJCP": "GODREJCP.NS", "GRASIM": "GRASIM.NS", "HAL": "HAL.NS", "HAVELLS": "HAVELLS.NS",
-    "HCLTECH": "HCLTECH.NS", "HDFCBANK": "HDFCBANK.NS", "HDFCLIFE": "HDFCLIFE.NS",
-    "HEROMOTOCO": "HEROMOTOCO.NS", "HINDALCO": "HINDALCO.NS", "HINDPETRO": "HINDPETRO.NS",
-    "HINDUNILVR": "HINDUNILVR.NS", "ICICIBANK": "ICICIBANK.NS", "IDEA": "IDEA.NS",
-    "IDFCFIRSTB": "IDFCFIRSTB.NS", "INDHOTEL": "INDHOTEL.NS", "INDIGO": "INDIGO.NS",
-    "INDUSINDBK": "INDUSINDBK.NS", "INFY": "INFY.NS", "IOC": "IOC.NS", "IRFC": "IRFC.NS",
-    "ITC": "ITC.NS", "JINDALSTEL": "JINDALSTEL.NS", "JSWSTEEL": "JSWSTEEL.NS", "KOTAKBANK": "KOTAKBANK.NS",
-    "LT": "LT.NS", "LUPIN": "LUPIN.NS", "M&M": "M&M.NS", "MARUTI": "MARUTI.NS",
-    "NTPC": "NTPC.NS", "ONGC": "ONGC.NS", "PIDILITIND": "PIDILITIND.NS", "PNB": "PNB.NS",
+    "BAJAJFINSV": "BAJAJFINSV.NS", "BAJAJHLDNG": "BAJAJHLDNG.NS", "BAJFINANCE": "BAJFINANCE.NS",
+    "BANDHANBNK": "BANDHANBNK.NS", "BANKBARODA": "BANKBARODA.NS", "BANKINDIA": "BANKINDIA.NS",
+    "BDL": "BDL.NS", "BEL": "BEL.NS", "BHARATFORG": "BHARATFORG.NS", "BHARTIARTL": "BHARTIARTL.NS",
+    "BHEL": "BHEL.NS", "BIOCON": "BIOCON.NS", "BLUESTARCO": "BLUESTARCO.NS", "BOSCHLTD": "BOSCHLTD.NS",
+    "BPCL": "BPCL.NS", "BRITANNIA": "BRITANNIA.NS", "BSE": "BSE.NS", "CAMS": "CAMS.NS",
+    "CANBK": "CANBK.NS", "CDSL": "CDSL.NS", "CGPOWER": "CGPOWER.NS", "CHOLAFIN": "CHOLAFIN.NS",
+    "CIPLA": "CIPLA.NS", "COALINDIA": "COALINDIA.NS", "COCHINSHIP": "COCHINSHIP.NS",
+    "COFORGE": "COFORGE.NS", "COLPAL": "COLPAL.NS", "CONCOR": "CONCOR.NS", "CROMPTON": "CROMPTON.NS",
+    "CUMMINSIND": "CUMMINSIND.NS", "DABUR": "DABUR.NS", "DALBHARAT": "DALBHARAT.NS",
+    "DELHIVERY": "DELHIVERY.NS", "DIVISLAB": "DIVISLAB.NS", "DIXON": "DIXON.NS", "DLF": "DLF.NS",
+    "DMART": "DMART.NS", "DRREDDY": "DRREDDY.NS", "EICHERMOT": "EICHERMOT.NS", "EXIDEIND": "EXIDEIND.NS",
+    "FEDERALBNK": "FEDERALBNK.NS", "FORCEMOT": "FORCEMOT.NS", "FORTIS": "FORTIS.NS", "GAIL": "GAIL.NS",
+    "GLENMARK": "GLENMARK.NS", "GMRAIRPORT": "GMRAIRPORT.NS", "GODFRYPHLP": "GODFRYPHLP.NS",
+    "GODREJCP": "GODREJCP.NS", "GODREJPROP": "GODREJPROP.NS", "GRASIM": "GRASIM.NS", "HAL": "HAL.NS",
+    "HAVELLS": "HAVELLS.NS", "HCLTECH": "HCLTECH.NS", "HDFCBANK": "HDFCBANK.NS", "HDFCAMC": "HDFCAMC.NS",
+    "HDFCLIFE": "HDFCLIFE.NS", "HEROMOTOCO": "HEROMOTOCO.NS", "HINDALCO": "HINDALCO.NS",
+    "HINDPETRO": "HINDPETRO.NS", "HINDUNILVR": "HINDUNILVR.NS", "HINDZINC": "HINDZINC.NS",
+    "ICICIBANK": "ICICIBANK.NS", "ICICIGI": "ICICIGI.NS", "ICICIPRULI": "ICICIPRULI.NS",
+    "IDEA": "IDEA.NS", "IDFCFIRSTB": "IDFCFIRSTB.NS", "IEX": "IEX.NS", "INDHOTEL": "INDHOTEL.NS",
+    "INDIANB": "INDIANB.NS", "INDIGO": "INDIGO.NS", "INDUSINDBK": "INDUSINDBK.NS",
+    "INDUSTOWER": "INDUSTOWER.NS", "INFY": "INFY.NS", "INOXWIND": "INOXWIND.NS", "IOC": "IOC.NS",
+    "IREDA": "IREDA.NS", "IRFC": "IRFC.NS", "ITC": "ITC.NS", "JINDALSTEL": "JINDALSTEL.NS",
+    "JIOFIN": "JIOFIN.NS", "JSWENERGY": "JSWENERGY.NS", "JSWSTEEL": "JSWSTEEL.NS",
+    "JUBLFOOD": "JUBLFOOD.NS", "KALYANKJIL": "KALYANKJIL.NS", "KAYNES": "KAYNES.NS",
+    "KEI": "KEI.NS", "KFINTECH": "KFINTECH.NS", "KOTAKBANK": "KOTAKBANK.NS", "KPITTECH": "KPITTECH.NS",
+    "LAURUSLABS": "LAURUSLABS.NS", "LICHSGFIN": "LICHSGFIN.NS", "LICI": "LICI.NS", "LODHA": "LODHA.NS",
+    "LT": "LT.NS", "LUPIN": "LUPIN.NS", "M&M": "M&M.NS", "MANAPPURAM": "MANAPPURAM.NS",
+    "MARICO": "MARICO.NS", "MARUTI": "MARUTI.NS", "MAXHEALTH": "MAXHEALTH.NS", "MAZDOCK": "MAZDOCK.NS",
+    "MCX": "MCX.NS", "MFSL": "MFSL.NS", "MOTHERSON": "MOTHERSON.NS", "MOTILALOFS": "MOTILALOFS.NS",
+    "MPHASIS": "MPHASIS.NS", "MUTHOOTFIN": "MUTHOOTFIN.NS", "NATIONALUM": "NATIONALUM.NS",
+    "NBCC": "NBCC.NS", "NESTLEIND": "NESTLEIND.NS", "NHPC": "NHPC.NS", "NMDC": "NMDC.NS",
+    "NTPC": "NTPC.NS", "NUVAMA": "NUVAMA.NS", "OBEROIRLTY": "OBEROIRLTY.NS", "OFSS": "OFSS.NS",
+    "ONGC": "ONGC.NS", "OIL": "OIL.NS", "PAGEIND": "PAGEIND.NS", "PERSISTENT": "PERSISTENT.NS",
+    "PETRONET": "PETRONET.NS", "PFC": "PFC.NS", "PIDILITIND": "PIDILITIND.NS", "PNB": "PNB.NS",
     "POLYCAB": "POLYCAB.NS", "POWERGRID": "POWERGRID.NS", "RELIANCE": "RELIANCE.NS", "SBIN": "SBIN.NS",
-    "SUNPHARMA": "SUNPHARMA.NS", "SUZLON": "SUZLON.NS", "TATAMOTORS": "TATAMOTORS.NS",
+    "SHRIRAMFIN": "SHRIRAMFIN.NS", "SIEMENS": "SIEMENS.NS", "SOLARINDS": "SOLARINDS.NS",
+    "SRF": "SRF.NS", "SUNPHARMA": "SUNPHARMA.NS", "SUZLON": "SUZLON.NS", "TATAMOTORS": "TATAMOTORS.NS",
     "TATACONSUM": "TATACONSUM.NS", "TATASTEEL": "TATASTEEL.NS", "TCS": "TCS.NS", "TECHM": "TECHM.NS",
     "TITAN": "TITAN.NS", "TRENT": "TRENT.NS", "TVSMOTOR": "TVSMOTOR.NS", "ULTRACEMCO": "ULTRACEMCO.NS",
     "VOLTAS": "VOLTAS.NS", "WIPRO": "WIPRO.NS", "ZOMATO": "ZOMATO.NS", "ZYDUSLIFE": "ZYDUSLIFE.NS"
@@ -53,28 +73,7 @@ STOCKS = {
 
 ALL_SYMBOLS = {**INDICES, **STOCKS}
 
-# ==================== PATTERN DETECTION ====================
-def detect_patterns(df):
-    body = abs(df['Close'] - df['Open'])
-    upper_shadow = df['High'] - df[['Open','Close']].max(axis=1)
-    lower_shadow = df[['Open','Close']].min(axis=1) - df['Low']
-
-    patterns = {
-        'Hammer': (lower_shadow > 2 * body) & (upper_shadow < body * 0.5) & (df['Close'] > df['Open']),
-        'BullEngulfing': (df['Close'].shift(1) < df['Open'].shift(1)) & (df['Close'] > df['Open']) & 
-                         (df['Close'] > df['Open'].shift(1)) & (df['Open'] < df['Close'].shift(1)),
-        'BearEngulfing': (df['Close'].shift(1) > df['Open'].shift(1)) & (df['Close'] < df['Open']) & 
-                         (df['Close'] < df['Open'].shift(1)) & (df['Open'] > df['Close'].shift(1))
-    }
-    
-    # Double Bottom (Bullish)
-    lows = df['Low'].rolling(window=8, center=True).min()
-    double_bottom = (abs(df['Low'] - lows.shift(8)) < df['Low']*0.008) & \
-                    (abs(df['Low'] - lows.shift(-8)) < df['Low']*0.008)
-    
-    return patterns, double_bottom.iloc[-1]
-
-# ==================== SIGNAL ENGINE (Score >= 8) ====================
+# ==================== SIGNAL WITH PATTERNS ====================
 def generate_signal(df):
     if len(df) < 30:
         return None, 0, None, []
@@ -86,57 +85,42 @@ def generate_signal(df):
     score = 0
     reasons = []
 
-    patterns, double_bottom = detect_patterns(df)
-
-    # Technical Conditions
+    # Technical
     if last > ma20:
         score += 4
         reasons.append("Above 20 EMA")
-
     if last > df['Close'].rolling(10).mean().iloc[-1]:
         score += 3
-        reasons.append("Short Momentum")
+        reasons.append("Momentum")
 
     if df['Volume'].iloc[-1] > vol_avg * 1.8:
         score += 3
         reasons.append("Volume Surge")
 
-    # Pattern Conditions (High Success Rate)
-    if patterns['Hammer'].iloc[-1]:
+    # Patterns
+    body = abs(df['Close'] - df['Open'])
+    lower_shadow = df[['Open','Close']].min(axis=1) - df['Low']
+    if (lower_shadow > 2 * body).iloc[-1]:
         score += 4
-        reasons.append("Hammer Candlestick (81%)")
+        reasons.append("Hammer Pattern")
 
-    if patterns['BullEngulfing'].iloc[-1]:
-        score += 4
-        reasons.append("Bullish Engulfing (72%)")
-
-    if double_bottom:
-        score += 3
-        reasons.append("Double Bottom (64%)")
-
-    # Final Decision
-    signal = None
     if score >= 8:
         signal = "🚀 VERY STRONG BUY ⬆️"
-    elif score <= -8:
-        signal = "🔻 VERY STRONG SELL ⬇️"
+        atm = round(last / 10) * 10
+        return signal, score, f"BUY {atm} CE", reasons
 
-    atm = round(last / 10) * 10
-    option = f"BUY {atm} CE" if "BUY" in str(signal) else f"BUY {atm} PE" if "SELL" in str(signal) else "HOLD"
-
-    return signal, score, option, reasons
+    return None, 0, None, []
 
 # ==================== TELEGRAM ====================
 async def send_telegram(message):
     try:
         bot = Bot(token=BOT_TOKEN)
         await bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='HTML')
-        print("✅ Very Strong Signal Sent!")
-    except Exception as e:
-        print(f"Telegram Error: {e}")
+    except:
+        pass
 
 # ==================== MAIN ====================
-def main():
+async def main():
     ist = pytz.timezone('Asia/Kolkata')
     now = datetime.now(ist)
 
@@ -148,8 +132,7 @@ def main():
     msg += f"🕒 {now.strftime('%d-%m-%Y %H:%M IST')}\n"
     msg += "━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
-    strong_count = 0
-
+    count = 0
     for name, ticker in ALL_SYMBOLS.items():
         try:
             df = yf.Ticker(ticker).history(period="2d", interval="5m")
@@ -159,26 +142,22 @@ def main():
                 continue
 
             signal, score, option, reasons = generate_signal(df)
-            if signal is None:
-                continue
-
-            spot = df['Close'].iloc[-1]
-
-            msg += f"<b>{name}</b> @ {spot:.1f}\n"
-            msg += f"{signal} | Score: {score}\n"
-            msg += f"Option: {option}\n"
-            if reasons:
-                msg += f"→ {', '.join(reasons)}\n\n"
-            strong_count += 1
-
+            if signal:
+                spot = df['Close'].iloc[-1]
+                msg += f"<b>{name}</b> @ {spot:.1f}\n"
+                msg += f"{signal} | Score: {score}\n"
+                msg += f"Option: {option}\n"
+                if reasons:
+                    msg += f"→ {', '.join(reasons)}\n\n"
+                count += 1
         except:
             continue
 
-    if strong_count > 0:
-        asyncio.run(send_telegram(msg))
-        print(f"✅ Sent {strong_count} VERY STRONG signals")
+    if count > 0:
+        await send_telegram(msg)
+        print(f"✅ {count} strong signals sent")
     else:
-        print("No signals above score 8 this cycle")
+        print("No strong signals this cycle")
 
 if __name__ == "__main__":
     asyncio.run(main())
